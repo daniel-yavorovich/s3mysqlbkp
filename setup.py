@@ -12,6 +12,7 @@ setup(name='s3mysqlbkp',
     packages=['s3mysqlbkp'],
     package_dir={'s3mysqlbkp': 'src/s3mysqlbkp'},
     scripts = ['bin/s3mysqlbkp_run.py'],
+    download_url = 'http://pip.hosting4django.net/s3mysqlbkp-1.0.tar.gz',
     data_files=[
         ('../etc', ['cfg/s3mysqlbkp.conf']),
     ],
