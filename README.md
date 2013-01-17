@@ -6,8 +6,12 @@ MySQL backups to Amazon S3
 Install
 =======
 
-* Copy python module s3mysqlbkp to python path directory
-* Create link from bin/s3mysqlbkp_run.py to /usr/local/bin/
+$ sudo pip install s3mysqlbkp
+
+Configuration
+=============
+
+All configuration located in /etc/s3mysqlbkp.conf
 
 License
 ==================================
