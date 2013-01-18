@@ -2,7 +2,7 @@
 from distutils.core import setup
 
 setup(name='s3mysqlbkp',
-    version='1.0',
+    version='1.1',
     description='MySQL backups to Amazon S3',
     author='Daniel Yavorovich',
     author_email='yavorovich@denni.org',
