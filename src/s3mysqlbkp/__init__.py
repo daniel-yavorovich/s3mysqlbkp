@@ -20,12 +20,15 @@ from boto.s3.connection import S3Connection
 class S3MySQLBkp():
 
     def __init__(self, config_path):
+        self.config_path = config_path
+
+    def run_backup(self):
         self.backup_datetime = datetime.now().strftime('%F.%T')
 
-        self.config = self._read_config(config_path)
+        self.config = self._read_config(self.config_path)
         self.s3_conn = self._s3_connect_init()
         self._create_bucket()
-        self._create_mysql_dumps()
+        self._create_backups()
         self._upload_backups_to_s3()
         self._remove_tmp_file()
         self._remove_old_backups_from_s3()
@@ -57,7 +60,7 @@ class S3MySQLBkp():
             if error_description.status != 409:
                 raise error_description
 
-    def _create_mysql_dumps(self):
+    def _create_backups(self):
         # Create command processes
         mysqldump_schema_proc = subprocess.Popen(
             "mysqldump -h %s -u %s -p%s --verbose --quick --extended-insert --add-drop-database --add-drop-table --triggers --routines --no-data --databases %s" % (
@@ -98,6 +101,17 @@ class S3MySQLBkp():
         tar = tarfile.open(os.path.join(self.config.get('backup', 'tmp_dir'), "%s.tar.gz" % self.backup_datetime), "w|gz")
         tar.add(mysqldump_schema_tmpfile.name, "schema.sql")
         tar.add(mysqldump_data_tmpfile.name, "data.sql")
+
+        # Add files to archive
+        try:
+            backup_files_list = self.config.get('files', 'paths').split(' ')
+        except ConfigParser.NoSectionError:
+            backup_files_list = []
+
+        for file_path in backup_files_list:
+            if not os.path.isfile(file_path):
+                continue
+            tar.add(file_path)
 
         # Remove temporary files
         mysqldump_schema_tmpfile.close()

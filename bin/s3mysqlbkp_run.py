@@ -11,3 +11,5 @@ CONFIG_FILE = "/etc/s3mysqlbkp.conf"
 # Init S3MySQLBkp class
 s3bkp = S3MySQLBkp(CONFIG_FILE)
 
+# Run backup
+s3bkp.run_backup()
