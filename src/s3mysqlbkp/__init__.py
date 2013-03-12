@@ -111,9 +111,10 @@ class S3MySQLBkp():
             backup_files_list = []
 
         for src_path in backup_files_list:
-            if not os.path.isfile(src_path) or not os.path.isdir(src_path):
-                continue
-            tar.add(src_path)
+            try:
+                tar.add(src_path)
+            except Exception, error_description:
+                logging.error("Error backup %s: %s" % (src_path, error_description))
 
         # Close tar archive
         tar.close()
