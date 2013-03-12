@@ -111,7 +111,7 @@ class S3MySQLBkp():
             backup_files_list = []
 
         for src_path in backup_files_list:
-            if not os.path.isfile(src_path) or os.path.isdir(src_path):
+            if not os.path.isfile(src_path) or not os.path.isdir(src_path):
                 continue
             tar.add(src_path)
 
