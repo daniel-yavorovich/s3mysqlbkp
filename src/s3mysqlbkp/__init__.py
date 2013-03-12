@@ -110,10 +110,10 @@ class S3MySQLBkp():
         except ConfigParser.NoSectionError:
             backup_files_list = []
 
-        for file_path in backup_files_list:
-            if not os.path.isfile(file_path):
+        for src_path in backup_files_list:
+            if not os.path.isfile(src_path) or os.path.isdir(src_path):
                 continue
-            tar.add(file_path)
+            tar.add(src_path)
 
         # Close tar archive
         tar.close()
