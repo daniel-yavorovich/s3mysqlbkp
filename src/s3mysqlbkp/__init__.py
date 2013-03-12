@@ -4,18 +4,16 @@
 
 import os
 import tarfile
-import subprocess
-import boto
-import tempfile
-import mimetypes
 import logging
+import MySQLdb
+import tempfile
+import subprocess
 import ConfigParser
 from datetime import datetime
-from datetime import timedelta
 from exceptions import Exception
 from boto.s3.connection import Location
-from boto.exception import S3CreateError
 from boto.s3.connection import S3Connection
+
 
 class S3MySQLBkp():
 
@@ -61,46 +59,50 @@ class S3MySQLBkp():
                 raise error_description
 
     def _create_backups(self):
-        # Create command processes
-        mysqldump_schema_proc = subprocess.Popen(
-            "mysqldump -h %s -u %s -p%s --verbose --quick --extended-insert --add-drop-database --add-drop-table --triggers --routines --no-data --databases %s" % (
-                self.config.get('mysql', 'hostname'),
-                self.config.get('mysql', 'username'),
-                self.config.get('mysql', 'password'),
-                self.config.get('mysql', 'databases'),
-                ),
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
-        )
-        mysqldump_data_proc = subprocess.Popen(
-            "mysqldump -h %s -u %s -p%s --quick --complete-insert --extended-insert --insert-ignore --hex-blob --no-create-info --single-transaction --databases %s" % (
-                self.config.get('mysql', 'hostname'),
-                self.config.get('mysql', 'username'),
-                self.config.get('mysql', 'password'),
-                self.config.get('mysql', 'databases'),
-                ),
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
-        )
-
-        # Create temporary files
-        mysqldump_schema_tmpfile = tempfile.NamedTemporaryFile()
-        mysqldump_data_tmpfile   = tempfile.NamedTemporaryFile()
-
-        # Run mysqldump command and write output to the temporary files
-        mysqldump_schema_tmpfile.write(mysqldump_schema_proc.communicate()[0])
-        mysqldump_data_tmpfile.write(mysqldump_data_proc.communicate()[0])
-
-        # Flush temporary files
-        mysqldump_schema_tmpfile.flush()
-        mysqldump_data_tmpfile.flush()
-
-        # Compress mysql dumps
+        # Create tar archive
         tar = tarfile.open(os.path.join(self.config.get('backup', 'tmp_dir'), "%s.tar.gz" % self.backup_datetime), "w|gz")
-        tar.add(mysqldump_schema_tmpfile.name, "schema.sql")
-        tar.add(mysqldump_data_tmpfile.name, "data.sql")
+
+        # Create schema dump
+        mysqldump_schema_proc = subprocess.Popen(
+            "mysqldump -h %s -u %s -p%s --verbose --quick --extended-insert --add-drop-database --add-drop-table --triggers --routines --no-data %s" % (
+                self.config.get('mysql', 'hostname'),
+                self.config.get('mysql', 'username'),
+                self.config.get('mysql', 'password'),
+                self.config.get('mysql', 'database'),
+                ),
+            shell=True,
+            stdout=subprocess.PIPE,
+        )
+        mysqldump_schema_tmpfile = tempfile.NamedTemporaryFile()
+        mysqldump_schema_tmpfile.write(mysqldump_schema_proc.communicate()[0])
+        mysqldump_schema_tmpfile.flush()
+        tar.add(mysqldump_schema_tmpfile.name, "%s_schema.sql" % self.config.get('mysql', 'database'))
+        mysqldump_schema_tmpfile.close()
+
+        # Get MySQL tables lis
+        db = MySQLdb.connect(host=self.config.get('mysql', 'hostname'), user=self.config.get('mysql', 'username'), passwd=self.config.get('mysql', 'password'), db=self.config.get('mysql', 'database'), charset='utf8')
+        cursor = db.cursor()
+        cursor.execute('show tables;')
+
+        # Create tables dumps
+        for table_name in [i[0] for i in cursor.fetchall()]:
+
+            mysqldump_data_proc = subprocess.Popen(
+                "mysqldump -h %s -u %s -p%s --quick --complete-insert --extended-insert --insert-ignore --hex-blob --no-create-info --single-transaction %s %s" % (
+                    self.config.get('mysql', 'hostname'),
+                    self.config.get('mysql', 'username'),
+                    self.config.get('mysql', 'password'),
+                    self.config.get('mysql', 'database'),
+                    table_name
+                    ),
+                shell=True,
+                stdout=subprocess.PIPE,
+            )
+            mysqldump_data_tmpfile = tempfile.NamedTemporaryFile()
+            mysqldump_data_tmpfile.write(mysqldump_data_proc.communicate()[0])
+            mysqldump_data_tmpfile.flush()
+            tar.add(mysqldump_data_tmpfile.name, "%s_tables/%s.sql" % (self.config.get('mysql', 'database'), table_name))
+            mysqldump_data_tmpfile.close()
 
         # Add files to archive
         try:
@@ -112,10 +114,6 @@ class S3MySQLBkp():
             if not os.path.isfile(file_path):
                 continue
             tar.add(file_path)
-
-        # Remove temporary files
-        mysqldump_schema_tmpfile.close()
-        mysqldump_data_tmpfile.close()
 
         # Close tar archive
         tar.close()
